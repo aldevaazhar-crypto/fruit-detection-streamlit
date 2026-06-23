@@ -12,15 +12,15 @@ import numpy as np
 # KONFIGURASI HALAMAN
 # =========================
 st.set_page_config(
-    page_title="AI Klasifikasi Jenis Buah",
+    page_title="AI Klasifikasi Apel dan Mangga",
     page_icon="🍎",
     layout="centered"
 )
 
-st.title("🍎 AI Klasifikasi Jenis Buah")
+st.title("🍎🥭 AI Klasifikasi Apel dan Mangga")
 st.write(
-    "Aplikasi ini digunakan untuk mengklasifikasikan jenis buah dari gambar "
-    "menggunakan model CNN berformat H5."
+    "Aplikasi ini digunakan untuk mengklasifikasikan gambar buah menjadi "
+    "Apel atau Mangga menggunakan model CNN berformat H5."
 )
 
 # =========================
@@ -29,27 +29,20 @@ st.write(
 MODEL_PATH = "model_buah_cnn.h5"
 FIXED_MODEL_PATH = "model_buah_cnn_fixed.h5"
 
-# GANTI dengan ID Google Drive model H5 multiclass kamu
+# ID file Google Drive
 FILE_ID = "1a6L-Yy0hb7X5PE4VMEX-N2usdvDzLLzs"
 
-# Sesuaikan dengan ukuran input waktu training
+# Ukuran input gambar
+# Kalau waktu training pakai ukuran lain, ganti di sini
 IMG_SIZE = (277, 277)
 
-# =========================
-# DAFTAR KELAS BUAH
-# =========================
-# PENTING:
-# Urutan ini harus sama dengan urutan class_names saat training.
-# Kalau dataset kamu foldernya cuma buah_naga dan mangga, pakai:
-# CLASS_NAMES = ["Buah Naga", "Mangga"]
+# Urutan kelas
+# Biasanya kalau folder training:
+# apel/
+# mangga/
+# maka urutannya sering jadi ["Apel", "Mangga"]
+CLASS_NAMES = ["Apel", "Mangga"]
 
-CLASS_NAMES = [
-    "Buah Naga",
-    "Mangga",
-    "Apel",
-    "Pisang",
-    "Jeruk"
-]
 
 # =========================
 # FUNGSI FIX MODEL H5
@@ -86,6 +79,7 @@ def fix_h5_model(original_path, fixed_path):
 
     return fixed_path
 
+
 # =========================
 # DOWNLOAD DAN LOAD MODEL
 # =========================
@@ -93,7 +87,7 @@ def fix_h5_model(original_path, fixed_path):
 def load_model():
     if not os.path.exists(MODEL_PATH):
         url = f"https://drive.google.com/uc?id={FILE_ID}"
-        with st.spinner("Mengunduh model AI dari Google Drive..."):
+        with st.spinner("Mengunduh model dari Google Drive..."):
             gdown.download(url, MODEL_PATH, quiet=False)
 
     fixed_path = fix_h5_model(MODEL_PATH, FIXED_MODEL_PATH)
@@ -115,32 +109,9 @@ except Exception as e:
     st.code(str(e))
     st.stop()
 
-# =========================
-# CEK JUMLAH OUTPUT MODEL
-# =========================
-try:
-    output_shape = model.output_shape
-    jumlah_output = output_shape[-1]
-
-    if jumlah_output == 1:
-        st.error(
-            "Model ini masih model binary classification, jadi hanya bisa membedakan "
-            "2 kondisi seperti Buah/Bukan Buah. Untuk hasil Buah Naga, Mangga, Apel, dll, "
-            "model harus dilatih ulang sebagai multiclass classification."
-        )
-        st.stop()
-
-    if jumlah_output != len(CLASS_NAMES):
-        st.warning(
-            f"Jumlah output model adalah {jumlah_output}, tetapi jumlah CLASS_NAMES adalah {len(CLASS_NAMES)}. "
-            "Pastikan daftar CLASS_NAMES sesuai dengan jumlah kelas saat training."
-        )
-except Exception as e:
-    st.warning("Tidak bisa membaca output shape model.")
-    st.write(e)
 
 # =========================
-# FUNGSI PREPROCESS GAMBAR
+# PREPROCESS GAMBAR
 # =========================
 def preprocess_image(image):
     image = image.convert("RGB")
@@ -149,11 +120,12 @@ def preprocess_image(image):
     image_array = np.expand_dims(image_array, axis=0)
     return image_array
 
+
 # =========================
 # UPLOAD GAMBAR
 # =========================
 uploaded_file = st.file_uploader(
-    "Upload gambar buah untuk diklasifikasikan",
+    "Upload gambar buah",
     type=["jpg", "jpeg", "png"]
 )
 
@@ -165,27 +137,64 @@ if uploaded_file is not None:
 
     processed_image = preprocess_image(image)
 
-    prediction = model.predict(processed_image)[0]
-
-    predicted_index = int(np.argmax(prediction))
-    predicted_class = CLASS_NAMES[predicted_index]
-    confidence = float(np.max(prediction))
+    prediction = model.predict(processed_image, verbose=0)
+    pred = prediction[0]
 
     st.subheader("Hasil Prediksi")
 
-    st.success(f"HASIL: {predicted_class}")
-    st.write(f"Tingkat keyakinan: **{confidence * 100:.2f}%**")
+    # =========================
+    # HANDLE 2 KEMUNGKINAN OUTPUT MODEL
+    # 1. Binary sigmoid -> output shape (1,)
+    # 2. Multiclass softmax 2 kelas -> output shape (2,)
+    # =========================
+    if len(pred.shape) == 0:
+        pred = np.array([float(pred)])
 
-    st.write("Detail probabilitas:")
+    if len(pred) == 1:
+        # Model binary sigmoid
+        score = float(pred[0])
 
-    for class_name, prob in zip(CLASS_NAMES, prediction):
-        st.write(f"{class_name}: {prob * 100:.2f}%")
-        st.progress(float(prob))
+        if score >= 0.5:
+            predicted_class = CLASS_NAMES[1]
+            confidence = score
+        else:
+            predicted_class = CLASS_NAMES[0]
+            confidence = 1 - score
+
+        st.success(f"HASIL: {predicted_class}")
+        st.write(f"Tingkat keyakinan: **{confidence * 100:.2f}%**")
+
+        st.write("Detail probabilitas:")
+        st.write(f"{CLASS_NAMES[0]}: {(1 - score) * 100:.2f}%")
+        st.progress(float(1 - score))
+
+        st.write(f"{CLASS_NAMES[1]}: {score * 100:.2f}%")
+        st.progress(float(score))
+
+    elif len(pred) == 2:
+        # Model softmax 2 kelas
+        predicted_index = int(np.argmax(pred))
+        predicted_class = CLASS_NAMES[predicted_index]
+        confidence = float(np.max(pred))
+
+        st.success(f"HASIL: {predicted_class}")
+        st.write(f"Tingkat keyakinan: **{confidence * 100:.2f}%**")
+
+        st.write("Detail probabilitas:")
+        for class_name, prob in zip(CLASS_NAMES, pred):
+            st.write(f"{class_name}: {prob * 100:.2f}%")
+            st.progress(float(prob))
+
+    else:
+        st.error(
+            f"Jumlah output model terdeteksi {len(pred)}. "
+            "Kode ini disiapkan untuk 2 kelas: Apel dan Mangga."
+        )
 
     st.caption(
-        "Catatan: aplikasi ini menggunakan model klasifikasi multiclass, "
-        "sehingga hasilnya berupa nama jenis buah."
+        "Catatan: jika hasil Apel dan Mangga tertukar, cukup tukar urutan "
+        "CLASS_NAMES di dalam app.py."
     )
 
 else:
-    st.info("Silakan upload gambar buah terlebih dahulu.")
+    st.info("Silakan upload gambar apel atau mangga terlebih dahulu.")
