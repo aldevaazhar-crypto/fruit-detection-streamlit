@@ -12,15 +12,15 @@ import numpy as np
 # KONFIGURASI HALAMAN
 # =========================
 st.set_page_config(
-    page_title="AI Klasifikasi Buah Naga dan Mangga",
-    page_icon="🍎",
+    page_title="AI Klasifikasi Buah",
+    page_icon="🍉",
     layout="centered"
 )
 
-st.title("🐉🥭 AI Klasifikasi Buah Naga dan Mangga")
+st.title("🍉 AI Klasifikasi Buah")
 st.write(
-    "Aplikasi ini digunakan untuk mengklasifikasikan gambar buah menjadi "
-    "Buah Naga atau Mangga menggunakan model CNN berformat H5."
+    "Aplikasi ini digunakan untuk mengklasifikasikan gambar buah "
+    "menggunakan model CNN berformat H5."
 )
 
 # =========================
@@ -33,13 +33,10 @@ FIXED_MODEL_PATH = "model_buah_cnn_fixed.h5"
 FILE_ID = "1a6L-Yy0hb7X5PE4VMEX-N2usdvDzLLzs"
 
 # Ukuran input gambar
-# Jika saat training kamu pakai ukuran lain, ganti di sini
 IMG_SIZE = (277, 277)
 
-# =========================
-# NAMA KELAS
-# =========================
-# Kalau hasilnya terbalik, tukar urutan kedua nama kelas ini
+# Kelas asli model
+# Jika hasil terbalik, tinggal tukar urutannya
 CLASS_NAMES = ["Buah Naga", "Mangga"]
 
 
@@ -90,7 +87,6 @@ def load_model():
             gdown.download(url, MODEL_PATH, quiet=False)
 
     fixed_path = fix_h5_model(MODEL_PATH, FIXED_MODEL_PATH)
-
     model = tf.keras.models.load_model(fixed_path, compile=False)
     return model
 
@@ -141,16 +137,13 @@ if uploaded_file is not None:
 
     st.subheader("Hasil Prediksi")
 
-    # =========================
-    # DUKUNG 2 TIPE OUTPUT MODEL
+    # Dukungan untuk 2 kemungkinan output model:
     # 1. Binary sigmoid -> output 1 angka
     # 2. Softmax 2 kelas -> output 2 angka
-    # =========================
     if len(pred.shape) == 0:
         pred = np.array([float(pred)])
 
     if len(pred) == 1:
-        # Model binary sigmoid
         score = float(pred[0])
 
         if score >= 0.5:
@@ -171,7 +164,6 @@ if uploaded_file is not None:
         st.progress(float(score))
 
     elif len(pred) == 2:
-        # Model softmax 2 kelas
         predicted_index = int(np.argmax(pred))
         predicted_class = CLASS_NAMES[predicted_index]
         confidence = float(np.max(pred))
@@ -187,13 +179,8 @@ if uploaded_file is not None:
     else:
         st.error(
             f"Jumlah output model terdeteksi {len(pred)}. "
-            "Kode ini disiapkan untuk 2 kelas: Buah Naga dan Mangga."
+            "Kode ini disiapkan untuk 2 kelas."
         )
 
-    st.caption(
-        "Catatan: jika hasil Buah Naga dan Mangga tertukar, cukup tukar urutan "
-        "CLASS_NAMES di dalam app.py."
-    )
-
 else:
-    st.info("Silakan upload gambar buah naga atau mangga terlebih dahulu.")
+    st.info("Silakan upload gambar buah terlebih dahulu.")
