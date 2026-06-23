@@ -1,4 +1,7 @@
 import os
+import json
+import shutil
+import h5py
 import gdown
 import streamlit as st
 import tensorflow as tf
@@ -24,17 +27,62 @@ st.write(
 # KONFIGURASI MODEL
 # =========================
 MODEL_PATH = "model_buah_cnn.h5"
+FIXED_MODEL_PATH = "model_buah_cnn_fixed.h5"
 
 # ID Google Drive file model .h5
 FILE_ID = "1a6L-Yy0hb7X5PE4VMEX-N2usdvDzLLzs"
 
-# Sesuai input model kamu
+# Sesuai input model buah kamu
 IMG_SIZE = (277, 277)
 
 # Label prediksi
-# Kalau hasilnya nanti kebalik, cukup tukar dua teks di bawah ini.
+# Kalau hasilnya kebalik, tukar dua label ini.
 LABEL_0 = "BUKAN BUAH"
 LABEL_1 = "BUAH"
+
+
+# =========================
+# FUNGSI FIX MODEL H5
+# =========================
+def remove_quantization_config(obj):
+    """
+    Menghapus key quantization_config dari konfigurasi model H5.
+    Ini untuk mengatasi error:
+    Unrecognized keyword arguments passed to Dense: {'quantization_config': None}
+    """
+    if isinstance(obj, dict):
+        obj.pop("quantization_config", None)
+        for value in obj.values():
+            remove_quantization_config(value)
+    elif isinstance(obj, list):
+        for item in obj:
+            remove_quantization_config(item)
+
+
+def fix_h5_model(original_path, fixed_path):
+    """
+    Membuat salinan model H5 lalu membersihkan model_config dari quantization_config.
+    """
+    if os.path.exists(fixed_path):
+        return fixed_path
+
+    shutil.copy(original_path, fixed_path)
+
+    with h5py.File(fixed_path, "r+") as h5file:
+        model_config = h5file.attrs.get("model_config")
+
+        if model_config is None:
+            return fixed_path
+
+        if isinstance(model_config, bytes):
+            model_config = model_config.decode("utf-8")
+
+        model_config_json = json.loads(model_config)
+        remove_quantization_config(model_config_json)
+
+        h5file.attrs.modify("model_config", json.dumps(model_config_json))
+
+    return fixed_path
 
 
 # =========================
@@ -44,12 +92,12 @@ LABEL_1 = "BUAH"
 def load_model():
     if not os.path.exists(MODEL_PATH):
         url = f"https://drive.google.com/uc?id={FILE_ID}"
-
         with st.spinner("Mengunduh model AI dari Google Drive..."):
             gdown.download(url, MODEL_PATH, quiet=False)
 
-    # compile=False supaya model H5 lebih aman dibaca di Streamlit Cloud
-    model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+    fixed_path = fix_h5_model(MODEL_PATH, FIXED_MODEL_PATH)
+
+    model = tf.keras.models.load_model(fixed_path, compile=False)
     return model
 
 
@@ -98,8 +146,8 @@ if uploaded_file is not None:
     prediction_value = float(prediction[0][0])
 
     # Model sigmoid:
-    # Nilai mendekati 0 = LABEL_0
-    # Nilai mendekati 1 = LABEL_1
+    # mendekati 0 = LABEL_0
+    # mendekati 1 = LABEL_1
     fruit_probability = prediction_value
     not_fruit_probability = 1 - fruit_probability
 
