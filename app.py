@@ -12,15 +12,15 @@ import numpy as np
 # KONFIGURASI HALAMAN
 # =========================
 st.set_page_config(
-    page_title="AI Klasifikasi Apel dan Mangga",
+    page_title="AI Klasifikasi Buah Naga dan Mangga",
     page_icon="🍎",
     layout="centered"
 )
 
-st.title("🍎🥭 AI Klasifikasi Apel dan Mangga")
+st.title("🐉🥭 AI Klasifikasi Buah Naga dan Mangga")
 st.write(
     "Aplikasi ini digunakan untuk mengklasifikasikan gambar buah menjadi "
-    "Apel atau Mangga menggunakan model CNN berformat H5."
+    "Buah Naga atau Mangga menggunakan model CNN berformat H5."
 )
 
 # =========================
@@ -33,15 +33,14 @@ FIXED_MODEL_PATH = "model_buah_cnn_fixed.h5"
 FILE_ID = "1a6L-Yy0hb7X5PE4VMEX-N2usdvDzLLzs"
 
 # Ukuran input gambar
-# Kalau waktu training pakai ukuran lain, ganti di sini
+# Jika saat training kamu pakai ukuran lain, ganti di sini
 IMG_SIZE = (277, 277)
 
-# Urutan kelas
-# Biasanya kalau folder training:
-# apel/
-# mangga/
-# maka urutannya sering jadi ["Apel", "Mangga"]
-CLASS_NAMES = ["Apel", "Mangga"]
+# =========================
+# NAMA KELAS
+# =========================
+# Kalau hasilnya terbalik, tukar urutan kedua nama kelas ini
+CLASS_NAMES = ["Buah Naga", "Mangga"]
 
 
 # =========================
@@ -143,9 +142,9 @@ if uploaded_file is not None:
     st.subheader("Hasil Prediksi")
 
     # =========================
-    # HANDLE 2 KEMUNGKINAN OUTPUT MODEL
-    # 1. Binary sigmoid -> output shape (1,)
-    # 2. Multiclass softmax 2 kelas -> output shape (2,)
+    # DUKUNG 2 TIPE OUTPUT MODEL
+    # 1. Binary sigmoid -> output 1 angka
+    # 2. Softmax 2 kelas -> output 2 angka
     # =========================
     if len(pred.shape) == 0:
         pred = np.array([float(pred)])
@@ -188,13 +187,13 @@ if uploaded_file is not None:
     else:
         st.error(
             f"Jumlah output model terdeteksi {len(pred)}. "
-            "Kode ini disiapkan untuk 2 kelas: Apel dan Mangga."
+            "Kode ini disiapkan untuk 2 kelas: Buah Naga dan Mangga."
         )
 
     st.caption(
-        "Catatan: jika hasil Apel dan Mangga tertukar, cukup tukar urutan "
+        "Catatan: jika hasil Buah Naga dan Mangga tertukar, cukup tukar urutan "
         "CLASS_NAMES di dalam app.py."
     )
 
 else:
-    st.info("Silakan upload gambar apel atau mangga terlebih dahulu.")
+    st.info("Silakan upload gambar buah naga atau mangga terlebih dahulu.")
