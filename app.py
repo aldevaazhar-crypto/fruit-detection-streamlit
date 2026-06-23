@@ -12,15 +12,15 @@ import numpy as np
 # KONFIGURASI HALAMAN
 # =========================
 st.set_page_config(
-    page_title="AI Deteksi Gambar Buah",
+    page_title="AI Klasifikasi Jenis Buah",
     page_icon="🍎",
     layout="centered"
 )
 
-st.title("🍎 AI Deteksi Gambar Buah")
+st.title("🍎 AI Klasifikasi Jenis Buah")
 st.write(
-    "Aplikasi ini digunakan untuk mengklasifikasikan gambar apakah termasuk "
-    "gambar buah atau bukan buah menggunakan model CNN berformat H5."
+    "Aplikasi ini digunakan untuk mengklasifikasikan jenis buah dari gambar "
+    "menggunakan model CNN berformat H5."
 )
 
 # =========================
@@ -29,27 +29,32 @@ st.write(
 MODEL_PATH = "model_buah_cnn.h5"
 FIXED_MODEL_PATH = "model_buah_cnn_fixed.h5"
 
-# ID Google Drive file model .h5
+# GANTI dengan ID Google Drive model H5 multiclass kamu
 FILE_ID = "1a6L-Yy0hb7X5PE4VMEX-N2usdvDzLLzs"
 
-# Sesuai input model buah kamu
+# Sesuaikan dengan ukuran input waktu training
 IMG_SIZE = (277, 277)
 
-# Label prediksi
-# Kalau hasilnya kebalik, tukar dua label ini.
-LABEL_0 = "BUKAN BUAH"
-LABEL_1 = "BUAH"
+# =========================
+# DAFTAR KELAS BUAH
+# =========================
+# PENTING:
+# Urutan ini harus sama dengan urutan class_names saat training.
+# Kalau dataset kamu foldernya cuma buah_naga dan mangga, pakai:
+# CLASS_NAMES = ["Buah Naga", "Mangga"]
 
+CLASS_NAMES = [
+    "Buah Naga",
+    "Mangga",
+    "Apel",
+    "Pisang",
+    "Jeruk"
+]
 
 # =========================
 # FUNGSI FIX MODEL H5
 # =========================
 def remove_quantization_config(obj):
-    """
-    Menghapus key quantization_config dari konfigurasi model H5.
-    Ini untuk mengatasi error:
-    Unrecognized keyword arguments passed to Dense: {'quantization_config': None}
-    """
     if isinstance(obj, dict):
         obj.pop("quantization_config", None)
         for value in obj.values():
@@ -60,9 +65,6 @@ def remove_quantization_config(obj):
 
 
 def fix_h5_model(original_path, fixed_path):
-    """
-    Membuat salinan model H5 lalu membersihkan model_config dari quantization_config.
-    """
     if os.path.exists(fixed_path):
         return fixed_path
 
@@ -83,7 +85,6 @@ def fix_h5_model(original_path, fixed_path):
         h5file.attrs.modify("model_config", json.dumps(model_config_json))
 
     return fixed_path
-
 
 # =========================
 # DOWNLOAD DAN LOAD MODEL
@@ -114,6 +115,29 @@ except Exception as e:
     st.code(str(e))
     st.stop()
 
+# =========================
+# CEK JUMLAH OUTPUT MODEL
+# =========================
+try:
+    output_shape = model.output_shape
+    jumlah_output = output_shape[-1]
+
+    if jumlah_output == 1:
+        st.error(
+            "Model ini masih model binary classification, jadi hanya bisa membedakan "
+            "2 kondisi seperti Buah/Bukan Buah. Untuk hasil Buah Naga, Mangga, Apel, dll, "
+            "model harus dilatih ulang sebagai multiclass classification."
+        )
+        st.stop()
+
+    if jumlah_output != len(CLASS_NAMES):
+        st.warning(
+            f"Jumlah output model adalah {jumlah_output}, tetapi jumlah CLASS_NAMES adalah {len(CLASS_NAMES)}. "
+            "Pastikan daftar CLASS_NAMES sesuai dengan jumlah kelas saat training."
+        )
+except Exception as e:
+    st.warning("Tidak bisa membaca output shape model.")
+    st.write(e)
 
 # =========================
 # FUNGSI PREPROCESS GAMBAR
@@ -125,12 +149,11 @@ def preprocess_image(image):
     image_array = np.expand_dims(image_array, axis=0)
     return image_array
 
-
 # =========================
 # UPLOAD GAMBAR
 # =========================
 uploaded_file = st.file_uploader(
-    "Upload gambar untuk dideteksi",
+    "Upload gambar buah untuk diklasifikasikan",
     type=["jpg", "jpeg", "png"]
 )
 
@@ -142,35 +165,27 @@ if uploaded_file is not None:
 
     processed_image = preprocess_image(image)
 
-    prediction = model.predict(processed_image)
-    prediction_value = float(prediction[0][0])
+    prediction = model.predict(processed_image)[0]
 
-    # Model sigmoid:
-    # mendekati 0 = LABEL_0
-    # mendekati 1 = LABEL_1
-    fruit_probability = prediction_value
-    not_fruit_probability = 1 - fruit_probability
+    predicted_index = int(np.argmax(prediction))
+    predicted_class = CLASS_NAMES[predicted_index]
+    confidence = float(np.max(prediction))
 
     st.subheader("Hasil Prediksi")
 
-    if fruit_probability >= 0.5:
-        st.success(f"HASIL: {LABEL_1}")
-        st.write(f"Tingkat keyakinan {LABEL_1.lower()}: **{fruit_probability * 100:.2f}%**")
-    else:
-        st.error(f"HASIL: {LABEL_0}")
-        st.write(f"Tingkat keyakinan {LABEL_0.lower()}: **{not_fruit_probability * 100:.2f}%**")
+    st.success(f"HASIL: {predicted_class}")
+    st.write(f"Tingkat keyakinan: **{confidence * 100:.2f}%**")
 
-    st.write("Probabilitas Buah:")
-    st.progress(fruit_probability)
+    st.write("Detail probabilitas:")
 
-    with st.expander("Detail nilai prediksi"):
-        st.write(f"Probabilitas {LABEL_1}: {fruit_probability * 100:.2f}%")
-        st.write(f"Probabilitas {LABEL_0}: {not_fruit_probability * 100:.2f}%")
+    for class_name, prob in zip(CLASS_NAMES, prediction):
+        st.write(f"{class_name}: {prob * 100:.2f}%")
+        st.progress(float(prob))
 
     st.caption(
-        "Catatan: aplikasi ini merupakan model klasifikasi gambar, sehingga hanya "
-        "menentukan apakah gambar termasuk buah atau bukan buah."
+        "Catatan: aplikasi ini menggunakan model klasifikasi multiclass, "
+        "sehingga hasilnya berupa nama jenis buah."
     )
 
 else:
-    st.info("Silakan upload gambar terlebih dahulu.")
+    st.info("Silakan upload gambar buah terlebih dahulu.")
